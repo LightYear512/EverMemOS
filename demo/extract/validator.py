@@ -63,10 +63,12 @@ class ResultValidator:
         vectorize_service = get_vectorize_service()
         query_vector = await vectorize_service.get_embedding("测试")
         
+        # 注意：limit 不能太大，Milvus HNSW 索引要求 ef >= k
+        # 默认 ef=64，所以 limit 最多设置为 64
         milvus_results = await milvus_repo.vector_search(
             query_vector=query_vector,
             user_id="default",
-            limit=1000,
+            limit=50,  # 减小 limit，避免超过 ef 参数（默认 64）
         )
         print(f"  - 找到 {len(milvus_results)} 条记录")
         
