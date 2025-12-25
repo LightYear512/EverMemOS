@@ -29,11 +29,14 @@ def parse_args():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Server listening host address (default: 0.0.0.0)",
+        default=None,
+        help="Server listening host address (env: MEMSYS_HOST, default: 0.0.0.0)",
     )
     parser.add_argument(
-        "--port", type=int, default=1995, help="Server listening port (default: 1995)"
+        "--port",
+        type=int,
+        default=None,
+        help="Server listening port (env: MEMSYS_PORT, default: 1995)",
     )
     parser.add_argument(
         "--env-file",
@@ -83,6 +86,21 @@ def main():
         service_name=service_name,
     )
 
+    # Determine host and port: CLI args > env vars > defaults
+    if args.host is not None:
+        host = args.host
+    elif os.getenv("MEMSYS_HOST"):
+        host = os.getenv("MEMSYS_HOST")
+    else:
+        host = "0.0.0.0"
+
+    if args.port is not None:
+        port = args.port
+    elif os.getenv("MEMSYS_PORT"):
+        port = int(os.getenv("MEMSYS_PORT"))
+    else:
+        port = 1995
+
     # Check if Mock mode is enabled: prioritize command line argument, then environment variable
     from core.di.utils import enable_mock_mode
 
@@ -98,8 +116,8 @@ def main():
     logger.info("🚀 Starting %s v%s", APP_NAME, APP_VERSION)
     logger.info("📝 %s", APP_DESCRIPTION)
     logger.info("🌟 Startup parameters:")
-    logger.info("  📡 Host: %s", args.host)
-    logger.info("  🔌 Port: %s", args.port)
+    logger.info("  📡 Host: %s", host)
+    logger.info("  🔌 Port: %s", port)
     logger.info("  📄 Env File: %s", args.env_file)
     logger.info("  🎭 Mock Mode: %s", args.mock)
     logger.info("  🔧 LongJob Mode: %s", args.longjob if args.longjob else "Disabled")
@@ -130,7 +148,7 @@ def main():
 
     # Start service using command line arguments
     try:
-        uvicorn_kwargs = {"host": args.host, "port": args.port}
+        uvicorn_kwargs = {"host": host, "port": port}
         uvicorn.run(app, **uvicorn_kwargs)
     except KeyboardInterrupt:
         logger.info("👋 %s stopped", APP_NAME)
