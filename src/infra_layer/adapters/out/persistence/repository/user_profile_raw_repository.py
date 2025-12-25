@@ -41,13 +41,7 @@ class UserProfileRawRepository(BaseRepository[UserProfile]):
         metadata = metadata or {}
         group_id = metadata.get("group_id", "default")
 
-        if hasattr(profile, 'to_dict'):
-            profile_data = profile.to_dict()
-        elif isinstance(profile, dict):
-            profile_data = profile
-        else:
-            profile_data = {"data": str(profile)}
-
+        profile_data = profile.to_dict() if hasattr(profile, 'to_dict') else profile
         result = await self.upsert(user_id, group_id, profile_data, metadata)
         return result is not None
 

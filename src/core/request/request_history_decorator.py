@@ -110,9 +110,7 @@ async def _publish_request_history_event(event: RequestHistoryEvent) -> None:
 
 
 def log_request(
-    include_body: bool = True,
-    async_publish: bool = True,
-    version: Optional[str] = None,
+    include_body: bool = True, async_publish: bool = True, version: Optional[str] = None
 ) -> Callable:
     """
     Decorator to log request information as an event

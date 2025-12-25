@@ -157,6 +157,9 @@ class BaseMemory:
     vector_model: Optional[str] = None
     vector: Optional[List[float]] = None
 
+    # ID field for retrieval
+    id: Optional[str] = None
+
     def _format_timestamp(self) -> Optional[str]:
         """Format timestamp to ISO string"""
         if not self.timestamp:
@@ -170,6 +173,7 @@ class BaseMemory:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "id": self.id,
             "memory_type": self.memory_type.value if self.memory_type else None,
             "user_id": self.user_id,
             "user_name": self.user_name,

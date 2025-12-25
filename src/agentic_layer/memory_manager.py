@@ -853,6 +853,7 @@ class MemoryManager:
 
             # Create object based on memory type
             base_kwargs = dict(
+                id=hit_id,
                 memory_type=memory_type_value,
                 user_id=user_id,
                 timestamp=timestamp,

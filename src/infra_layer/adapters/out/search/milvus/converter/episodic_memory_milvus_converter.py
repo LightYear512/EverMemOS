@@ -165,7 +165,7 @@ class EpisodicMemoryMilvusConverter(BaseMilvusConverter[EpisodicMemoryCollection
 
         if hasattr(source_doc, 'episode') and source_doc.episode:
             # episode might be very long, only take first 500 characters
-            text_content.append(source_doc.episode[:500])
+            text_content.append(source_doc.episode)
 
         # Return JSON string list format, keep consistent with MemCell synchronization logic
         return json.dumps(text_content, ensure_ascii=False)

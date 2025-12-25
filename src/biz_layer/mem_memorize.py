@@ -3,6 +3,8 @@ import random
 import time
 import json
 import traceback
+
+from memory_layer.profile_manager.config import ScenarioType
 from api_specs.dtos.memory_command import MemorizeRequest
 from memory_layer.memory_manager import MemoryManager
 from api_specs.memory_types import (
@@ -54,10 +56,7 @@ from datetime import datetime, timedelta
 import os
 import asyncio
 from collections import defaultdict
-from common_utils.datetime_utils import (
-    get_now_with_timezone,
-    to_iso_format,
-)
+from common_utils.datetime_utils import get_now_with_timezone, to_iso_format
 from memory_layer.memcell_extractor.base_memcell_extractor import StatusResult
 import traceback
 
@@ -86,24 +85,6 @@ class MemoryDocPayload:
     doc: Any
 
 
-def _clone_event_log(raw_event_log: Any) -> Optional[EventLog]:
-    """Convert any structured event log into an EventLog instance"""
-    if raw_event_log is None:
-        return None
-
-    if isinstance(raw_event_log, EventLog):
-        return EventLog(
-            time=getattr(raw_event_log, "time", ""),
-            atomic_fact=list(getattr(raw_event_log, "atomic_fact", []) or []),
-            fact_embeddings=getattr(raw_event_log, "fact_embeddings", None),
-        )
-
-    if isinstance(raw_event_log, dict):
-        return EventLog.from_dict(raw_event_log)
-
-    return None
-
-
 from biz_layer.memorize_config import MemorizeConfig, DEFAULT_MEMORIZE_CONFIG
 
 
@@ -119,8 +100,8 @@ async def _trigger_clustering(
         group_id: Group ID
         memcell: The MemCell just saved
         scene: Conversation scene (used to determine Profile extraction strategy)
-            - None/"work"/"company", etc.: use group_chat scene
-            - "assistant"/"companion", etc.: use assistant scene
+            - "group_chat": use group_chat scene
+            - "assistant": use assistant scene
     """
     logger.info(
         f"[Clustering] Start triggering clustering: group_id={group_id}, event_id={memcell.event_id}, scene={scene}"
@@ -268,7 +249,8 @@ async def _trigger_profile_extraction(
         )
 
         # Get Profile storage
-        profile_storage = get_bean_by_type(UserProfileRawRepository)
+        profile_repo = get_bean_by_type(UserProfileRawRepository)
+        memcell_repo = get_bean_by_type(MemCellRawRepository)
 
         # Create LLM Provider
         llm_provider = LLMProvider(
@@ -282,9 +264,7 @@ async def _trigger_profile_extraction(
 
         # Determine scenario
         profile_scenario = (
-            "assistant"
-            if scene and scene.lower() in ["assistant", "companion"]
-            else "group_chat"
+            ScenarioType(scene.lower()) if scene else ScenarioType.GROUP_CHAT
         )
 
         # Create ProfileManager (pure computation component)
@@ -307,85 +287,111 @@ async def _trigger_profile_extraction(
             for u in (memcell.participants or [])
             if "robot" not in u.lower() and "assistant" not in u.lower()
         ]
+        # ===== Common preprocessing: fetch all cluster memcells =====
+        current_event_id = str(memcell.event_id) if memcell.event_id else cluster_id
+        cluster_event_ids = set()
+        if cluster_state and hasattr(cluster_state, 'eventid_to_cluster'):
+            for event_id, cid in cluster_state.eventid_to_cluster.items():
+                if cid == cluster_id and event_id != current_event_id:
+                    cluster_event_ids.add(event_id)
 
-        # Load existing profiles
-        old_profiles_dict = await profile_storage.get_all_profiles()
-        old_profiles = list(old_profiles_dict.values()) if old_profiles_dict else []
+        # Fetch cluster memcells + current memcell
+        all_memcells = []
+        if cluster_event_ids:
+            try:
+                cluster_memcells_dict = await memcell_repo.get_by_event_ids(
+                    list(cluster_event_ids)
+                )
+                all_memcells = list(cluster_memcells_dict.values())
+            except Exception as e:
+                logger.warning(f"[Profile] Failed to fetch cluster memcells: {e}")
 
-        # Perform Profile extraction (pass MemCell objects directly, not dictionaries)
-        new_profiles = await profile_manager.extract_profiles(
-            memcells=[memcell],  # Pass MemCell object
-            old_profiles=old_profiles,
-            user_id_list=user_id_list,
+        # Append current memcell as the last one (new_memcell)
+        all_memcells.append(memcell)
+        logger.info(
+            f"[Profile] Context: cluster={len(all_memcells) - 1}, new=1, users={len(user_id_list)}"
         )
 
-        # Save newly extracted profiles
-        for profile in new_profiles:
-            if isinstance(profile, dict):
-                user_id = profile.get('user_id')
-            else:
-                user_id = getattr(profile, 'user_id', None)
+        # ===== Extract and save profiles =====
 
-            if user_id:
-                await profile_storage.save_profile(
-                    user_id,
-                    profile,
-                    metadata={
+        # Load old profiles (same for Work and Life)
+        old_profiles_dict = await profile_repo.get_all_profiles(group_id=group_id)
+        old_profiles = list(old_profiles_dict.values()) if old_profiles_dict else []
+        logger.info(
+            f"[Profile] Loaded {len(old_profiles)} existing profiles for group={group_id}"
+        )
+        if old_profiles:
+            for uid, p in old_profiles_dict.items():
+                keys = list(p.keys()) if isinstance(p, dict) else dir(p)
+                logger.info(f"[Profile] Profile for {uid}: keys={keys[:8]}")
+
+        # Extract profiles
+        if profile_scenario == ScenarioType.ASSISTANT:
+            new_profiles = await profile_manager.extract_profiles_life(
+                memcells=all_memcells,
+                old_profiles=old_profiles,
+                user_id_list=user_id_list,
+                group_id=group_id,
+                max_items=config.profile_life_max_items,
+            )
+        else:
+            new_profiles = await profile_manager.extract_profiles(
+                memcells=all_memcells,
+                old_profiles=old_profiles,
+                user_id_list=user_id_list,
+                group_id=group_id,
+            )
+
+        # Save profiles
+        for profile in new_profiles:
+            try:
+                if profile_scenario == ScenarioType.ASSISTANT:
+                    user_id = profile.user_id
+                    profile_data = profile.to_dict()
+                    metadata = {
                         "group_id": group_id,
-                        "scenario": profile_scenario,
+                        "scenario": ScenarioType.ASSISTANT.value,
+                        "cluster_id": cluster_id,
+                        "memcell_count": cluster_memcell_count,
+                        "total_items": profile.total_items(),
+                    }
+                else:
+                    user_id = (
+                        profile.get('user_id')
+                        if isinstance(profile, dict)
+                        else getattr(profile, 'user_id', None)
+                    )
+                    # Convert to dict if it's a ProfileMemory object
+                    if hasattr(profile, 'to_dict'):
+                        profile_data = profile.to_dict()
+                    elif isinstance(profile, dict):
+                        profile_data = profile
+                    else:
+                        profile_data = (
+                            profile.__dict__
+                            if hasattr(profile, '__dict__')
+                            else profile
+                        )
+                    metadata = {
+                        "group_id": group_id,
+                        "scenario": "group_chat",
                         "cluster_id": cluster_id,
                         "memcell_count": cluster_memcell_count,
                         "confidence": config.profile_min_confidence,
-                    },
-                )
-                logger.info(
-                    f"[Profile] ✅ Saved Profile: user_id={user_id}, group_id={group_id}, cluster={cluster_id}"
-                )
-            else:
-                logger.warning(
-                    f"[Profile] ⚠️ Profile has no user_id, skipping save: {type(profile)}"
-                )
+                    }
 
-        logger.info(
-            f"[Profile] ✅ Profile extraction completed: extracted {len(new_profiles)} profiles"
-        )
+                if user_id:
+                    await profile_repo.save_profile(
+                        user_id, profile_data, metadata=metadata
+                    )
+                    logger.info(f"[Profile] ✅ Saved: user={user_id}")
+            except Exception as e:
+                logger.warning(f"[Profile] Failed to save profile: {e}")
+
+        logger.info(f"[Profile] ✅ Completed: {len(new_profiles)} profiles")
 
     except Exception as e:
-        import traceback
-
         logger.error(f"[Profile] ❌ Profile extraction failed: {e}", exc_info=True)
-        print(f"[Profile] ❌ Profile extraction failed: {e}")
-        print(traceback.format_exc())
-        # Profile extraction failure should not block main flow
-
-
-def _convert_data_type_to_raw_data_type(data_type) -> RawDataType:
-    """
-    Convert different data type enums to unified RawDataType
-
-    Args:
-        data_type: Could be DataTypeEnum, RawDataType, or string
-
-    Returns:
-        RawDataType: Converted unified data type
-    """
-    if isinstance(data_type, RawDataType):
-        return data_type
-
-    # Get string value
-    if hasattr(data_type, 'value'):
-        type_str = data_type.value
-    else:
-        type_str = str(data_type)
-
-    # Mapping conversion
-    type_mapping = {
-        "Conversation": RawDataType.CONVERSATION,
-        "CONVERSATION": RawDataType.CONVERSATION,
-        # Other types map to CONVERSATION as default
-    }
-
-    return type_mapping.get(type_str, RawDataType.CONVERSATION)
 
 
 from biz_layer.mem_db_operations import (
@@ -443,7 +449,7 @@ async def process_memory_extraction(
     Main memory extraction process
 
     Starting from MemCell, extract all memory types including Episode, Foresight, EventLog, etc.
-    
+
     Returns:
         int: Total number of memories extracted
     """
@@ -460,7 +466,7 @@ async def process_memory_extraction(
     memories_count = 0
     if if_memorize(memcell):
         memories_count = await _process_memories(state, memory_manager)
-    
+
     return memories_count
 
 
@@ -475,7 +481,7 @@ async def _init_extraction_state(
         if conversation_meta and conversation_meta.scene
         else "assistant"
     )
-    is_assistant_scene = scene.lower() in ["assistant", "companion"]
+    is_assistant_scene = scene.lower() == ScenarioType.ASSISTANT
     participants = list(set(memcell.participants)) if memcell.participants else []
 
     return ExtractionState(
@@ -602,9 +608,11 @@ async def _update_memcell_and_cluster(state: ExtractionState):
         logger.error(f"[MemCell Processing] ❌ Failed to trigger clustering: {e}")
 
 
-async def _process_memories(state: ExtractionState, memory_manager: MemoryManager) -> int:
+async def _process_memories(
+    state: ExtractionState, memory_manager: MemoryManager
+) -> int:
     """Save Episodes and extract/save Foresight and EventLog
-    
+
     Returns:
         int: Total number of memories saved
     """
@@ -636,7 +644,7 @@ async def _process_memories(state: ExtractionState, memory_manager: MemoryManage
     await update_status_after_memcell(
         state.request, state.memcell, state.current_time, state.request.raw_data_type
     )
-    
+
     return episodes_count + foresight_count + eventlog_count
 
 
@@ -1153,7 +1161,7 @@ async def memorize(request: MemorizeRequest) -> int:
     2. Save MemCell to database
     3. Submit to global queue for asynchronous processing by Worker
     4. Return immediately, do not wait for subsequent processing to complete
-    
+
     Returns:
         int: Number of memories extracted (0 if no boundary detected or extraction failed)
     """
@@ -1219,7 +1227,7 @@ async def memorize(request: MemorizeRequest) -> int:
     if memcell == None:
         # Save new messages to conversation_data_repo
         await conversation_data_repo.save_conversation_data(
-           request.new_raw_data_list, request.group_id
+            request.new_raw_data_list, request.group_id
         )
         await update_status_when_no_memcell(
             request, status_result, current_time, request.raw_data_type
@@ -1264,7 +1272,9 @@ async def memorize(request: MemorizeRequest) -> int:
 
     # Directly execute memory extraction (blocking/asynchronous logic controlled by middleware layer request_process)
     try:
-        memories_count = await process_memory_extraction(memcell, request, memory_manager, current_time)
+        memories_count = await process_memory_extraction(
+            memcell, request, memory_manager, current_time
+        )
         logger.info(
             f"[mem_memorize] ✅ Memory extraction completed, count={memories_count}, request_id={request_id}"
         )
@@ -1273,4 +1283,3 @@ async def memorize(request: MemorizeRequest) -> int:
         logger.error(f"[mem_memorize] ❌ Memory extraction failed: {e}")
         traceback.print_exc()
         return 0
-

@@ -25,6 +25,8 @@ class MemorizeConfig:
     profile_min_confidence: float = 0.6
     # Whether to enable version control
     profile_enable_versioning: bool = True
+    # Life Profile maximum items (ASSISTANT scene only)
+    profile_life_max_items: int = 25
 
     @classmethod
     def from_env(cls) -> "MemorizeConfig":
