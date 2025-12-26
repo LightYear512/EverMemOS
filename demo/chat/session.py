@@ -14,6 +14,7 @@ from demo.utils import query_memcells_by_group_and_time
 from demo.ui import I18nTexts
 from memory_layer.llm.llm_provider import LLMProvider
 from common_utils.datetime_utils import get_now_with_timezone, to_iso_format
+from memory_layer.memory_extractor.profile_memory_life.types import ProfileMemoryLife
 
 
 class ChatSession:
@@ -26,7 +27,7 @@ class ChatSession:
         llm_config: LLMConfig,
         scenario_type: ScenarioType,
         retrieval_mode: str,  # "keyword" / "vector" / "hybrid" / "rrf" / "agentic"
-        data_source: str,     # "episode" / "event_log"
+        data_source: str,  # "episode" / "event_log"
         texts: I18nTexts,
         user_id: str = "user_001",  # User ID for profile fetch
     ):
@@ -61,7 +62,7 @@ class ChatSession:
         # API Configuration
         self.api_base_url = config.api_base_url
         self.retrieve_url = f"{self.api_base_url}/api/v1/memories/search"
-        
+
         # Last Retrieval Metadata
         self.last_retrieval_metadata: Optional[Dict[str, Any]] = None
 
@@ -225,28 +226,31 @@ class ChatSession:
     async def retrieve_memories(self, query: str) -> Dict[str, List[Dict[str, Any]]]:
         """Retrieve memories (episodes, foresights, profile) in parallel."""
         import asyncio
-        
+
         tasks = [
             self._search(query, memory_types=["episodic_memory"]),
             self._search(query, memory_types=["foresight"]),
             self._fetch_profile(),
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         all_memories = {"episodes": [], "foresights": [], "profiles": []}
-        
-        for i, (key, res) in enumerate(zip(["episodes", "foresights", "profiles"], results)):
+
+        for i, (key, res) in enumerate(
+            zip(["episodes", "foresights", "profiles"], results)
+        ):
             if isinstance(res, Exception):
                 print(f"[Warning] {key}: {res}")
             elif key == "profiles":
                 all_memories[key] = res
             else:
                 all_memories[key] = self._flatten_result(res)
-        
+
         # Metadata
         latency = sum(
             float(self._get_metadata(r).get("total_latency_ms", 0) or 0)
-            for r in results[:2] if not isinstance(r, Exception)
+            for r in results[:2]
+            if not isinstance(r, Exception)
         )
         self.last_retrieval_metadata = {
             "retrieval_mode": self.retrieval_mode,
@@ -300,19 +304,20 @@ class ChatSession:
         if data.get("status") != "ok":
             raise RuntimeError(f"API Error: {data.get('message')}")
 
-        raw_items = data.get("result", {}).get("memories", []) or []
-        records: List[Dict[str, Any]] = []
-        for entry in raw_items:
-            if not isinstance(entry, dict):
-                continue
-            if len(entry) == 1:
-                grouped_value = next(iter(entry.values()))
-                if isinstance(grouped_value, list):
-                    records.extend(r for r in grouped_value if isinstance(r, dict))
-                    continue
+        memories = data.get("result", {}).get("memories", []) or []
+        # For demo: generate readable_profile locally (moved from fetch_mem_service.py)
+        for mem in memories:
+            profile_data = mem.get("profile_data") or {}
+            if (
+                "readable_profile" not in profile_data
+                and "explicit_info" in profile_data
+            ):
 
-            records.append(entry)
-        return records
+                profile_data["readable_profile"] = ProfileMemoryLife.from_dict(
+                    profile_data
+                ).to_readable_profile()
+                mem["profile_data"] = profile_data
+        return memories
 
     def _get_metadata(self, resp: Dict[str, Any]) -> Dict[str, Any]:
         """Extract metadata from API response."""
@@ -398,7 +403,7 @@ class ChatSession:
         foresights = memories.get("foresights", [])
         if foresights:
             foresight_lines: List[str] = []
-            for f in foresights[:self.config.top_k_memories]:
+            for f in foresights[: self.config.top_k_memories]:
                 if not isinstance(f, dict):
                     continue
                 content = f.get("foresight") or f.get("summary")
@@ -411,7 +416,7 @@ class ChatSession:
         episodes = memories.get("episodes", [])
         if episodes:
             episode_lines: List[str] = []
-            for i, mem in enumerate(episodes[:self.config.top_k_memories], start=1):
+            for i, mem in enumerate(episodes[: self.config.top_k_memories], start=1):
                 if not isinstance(mem, dict):
                     continue
                 raw_timestamp = mem.get("timestamp", "")
@@ -421,7 +426,9 @@ class ChatSession:
                 if content:
                     episode_lines.append(f"  [{i}] ({timestamp}) {content}")
             if episode_lines:
-                memory_sections.append("【Related Memories】\n" + "\n".join(episode_lines))
+                memory_sections.append(
+                    "【Related Memories】\n" + "\n".join(episode_lines)
+                )
 
         # Add all memory sections as one system message
         if memory_sections:
