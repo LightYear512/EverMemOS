@@ -39,7 +39,7 @@ class RedisProvider:
             )
 
         # Other configurations use default values
-        self.max_connections = int(os.getenv("REDIS_MAX_CONNECTIONS", "60"))
+        self.max_connections = int(os.getenv("REDIS_MAX_CONNECTIONS", "400"))
         self.socket_timeout = int(os.getenv("REDIS_SOCKET_TIMEOUT", "15"))
         self.socket_connect_timeout = int(
             os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "5")
