@@ -5,7 +5,7 @@ import json
 import traceback
 
 from memory_layer.profile_manager.config import ScenarioType
-from api_specs.dtos.memory_command import MemorizeRequest
+from api_specs.dtos import MemorizeRequest
 from memory_layer.memory_manager import MemoryManager
 from api_specs.memory_types import (
     MemoryType,

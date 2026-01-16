@@ -46,7 +46,7 @@ from infra_layer.adapters.out.persistence.document.memory.foresight_record impor
 from infra_layer.adapters.out.persistence.repository.user_profile_raw_repository import (
     UserProfileRawRepository,
 )
-from api_specs.dtos.memory_query import FetchMemResponse
+from api_specs.dtos import FetchMemResponse
 from api_specs.memory_models import (
     MemoryType,
     BaseMemoryModel,
@@ -674,6 +674,9 @@ class FetchMemoryServiceImpl(FetchMemoryServiceInterface):
             )
 
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             logger.error(
                 f"Error fetching memories for user_id={user_id}, group_id={group_id}: {e}",
                 exc_info=True,

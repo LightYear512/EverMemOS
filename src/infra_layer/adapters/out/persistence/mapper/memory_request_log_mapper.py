@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from core.observation.logger import get_logger
 from common_utils.datetime_utils import from_iso_format
 from zoneinfo import ZoneInfo
-from api_specs.dtos.memory_command import RawData
+from api_specs.dtos import RawData
 from api_specs.request_converter import (
     build_raw_data_from_simple_message,
     normalize_refer_list,

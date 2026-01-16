@@ -16,8 +16,7 @@ from core.di.utils import get_bean_by_type
 from core.observation.logger import get_logger
 from core.context.context import get_current_app_info
 from core.oxm.constants import MAGIC_ALL
-from api_specs.dtos.memory_command import MemorizeRequest, RawData
-from api_specs.dtos.memory_query import PendingMessage
+from api_specs.dtos import MemorizeRequest, RawData, PendingMessage
 from infra_layer.adapters.out.persistence.document.request.memory_request_log import (
     MemoryRequestLog,
 )

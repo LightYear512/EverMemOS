@@ -19,16 +19,16 @@ from api_specs.memory_types import (
     RawDataType,
 )
 from biz_layer.mem_memorize import memorize
-from api_specs.dtos.memory_command import MemorizeRequest
+from api_specs.dtos import MemorizeRequest
 from .fetch_mem_service import get_fetch_memory_service
-from api_specs.dtos.memory_query import (
+from api_specs.dtos import (
     FetchMemRequest,
     FetchMemResponse,
     PendingMessage,
     RetrieveMemRequest,
     RetrieveMemResponse,
-    Metadata,
 )
+from api_specs.memory_models import Metadata
 from core.di import get_bean_by_type
 from core.oxm.constants import MAGIC_ALL
 from infra_layer.adapters.out.search.repository.episodic_memory_es_repository import (
@@ -1245,7 +1245,10 @@ class MemoryManager:
             for memcell in memcells:
                 if group_id not in original_data_by_group:
                     original_data_by_group[group_id] = []
-                original_data_by_group[group_id].append(memcell.original_data)
+                # Use extend instead of append to flatten the list structure
+                # memcell.original_data is a List[Dict], not a single Dict
+                if memcell.original_data:
+                    original_data_by_group[group_id].extend(memcell.original_data)
 
             # Create object based on memory type
             base_kwargs = dict(

@@ -10,7 +10,7 @@ This module contains the following features:
 """
 
 import time
-from api_specs.dtos.memory_command import MemorizeRequest
+from api_specs.dtos import MemorizeRequest
 from api_specs.memory_types import MemCell, RawDataType
 from memory_layer.memory_extractor.profile_memory_extractor import ProfileMemory
 from memory_layer.memory_extractor.group_profile_memory_extractor import (

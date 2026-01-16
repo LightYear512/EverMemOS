@@ -12,7 +12,6 @@ Provides RESTful API routes for:
 import json
 import logging
 from contextlib import suppress
-from typing import Any, Dict
 from fastapi import HTTPException, Request as FastAPIRequest
 
 from core.di.decorators import controller
@@ -25,7 +24,7 @@ from core.interface.controller.base_controller import (
     delete,
 )
 from core.constants.errors import ErrorCode, ErrorStatus
-from core.constants.exceptions import ValidationException, BaseException
+from core.constants.exceptions import ValidationException
 from agentic_layer.memory_manager import MemoryManager
 from api_specs.request_converter import (
     convert_simple_message_to_memorize_request,
@@ -33,13 +32,22 @@ from api_specs.request_converter import (
     convert_dict_to_retrieve_mem_request,
 )
 from infra_layer.adapters.input.api.dto.memory_dto import (
+    # Request DTOs
     MemorizeMessageRequest,
-    FetchMemoriesParams,
-    SearchMemoriesRequest,
+    FetchMemRequest,
+    RetrieveMemRequest,
     ConversationMetaCreateRequest,
     ConversationMetaGetRequest,
     ConversationMetaPatchRequest,
-    DeleteMemoriesRequest,
+    DeleteMemoriesRequestDTO,
+    # Response DTOs
+    MemorizeResponse,
+    FetchMemoriesResponse,
+    SearchMemoriesResponse,
+    GetConversationMetaResponse,
+    SaveConversationMetaResponse,
+    PatchConversationMetaResponse,
+    DeleteMemoriesResponse,
 )
 from core.request.timeout_background import timeout_to_background
 from core.request import log_request
@@ -75,7 +83,7 @@ class MemoryController(BaseController):
 
     @post(
         "",
-        response_model=Dict[str, Any],
+        response_model=MemorizeResponse,
         summary="Store single message",
         description="""
         Store a single message into memory.
@@ -97,55 +105,6 @@ class MemoryController(BaseController):
         - Returns extraction count and status
         """,
         responses={
-            200: {
-                "description": "Successfully stored memory data",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "MemorizeResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "saved_memories": {"type": "array"},
-                                        "count": {"type": "integer"},
-                                        "status_info": {"type": "string"},
-                                    },
-                                },
-                            },
-                        },
-                        "examples": {
-                            "extracted": {
-                                "summary": "Extracted memories (boundary triggered)",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Extracted 1 memories",
-                                    "result": {
-                                        "saved_memories": [],
-                                        "count": 1,
-                                        "status_info": "extracted",
-                                    },
-                                },
-                            },
-                            "accumulated": {
-                                "summary": "Message queued (boundary not triggered)",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Message queued, awaiting boundary detection",
-                                    "result": {
-                                        "saved_memories": [],
-                                        "count": 0,
-                                        "status_info": "accumulated",
-                                    },
-                                },
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -182,7 +141,7 @@ class MemoryController(BaseController):
         self,
         request: FastAPIRequest,
         request_body: MemorizeMessageRequest = None,  # OpenAPI documentation only
-    ) -> Dict[str, Any]:
+    ) -> MemorizeResponse:
         """
         Store single message memory data
 
@@ -282,7 +241,7 @@ class MemoryController(BaseController):
 
     @get(
         "",
-        response_model=Dict[str, Any],
+        response_model=FetchMemoriesResponse,
         summary="Fetch user memories",
         description="""
         Retrieve memory records by memory_type with optional filters
@@ -306,52 +265,6 @@ class MemoryController(BaseController):
         - Conversation history review
         """,
         responses={
-            200: {
-                "description": "Successfully retrieved memory data",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "FetchMemoriesResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "memories": {"type": "array"},
-                                        "total_count": {"type": "integer"},
-                                        "has_more": {"type": "boolean"},
-                                        "metadata": {"type": "object"},
-                                    },
-                                },
-                            },
-                        },
-                        "example": {
-                            "status": "ok",
-                            "message": "Memory retrieval successful",
-                            "result": {
-                                "memories": [
-                                    {
-                                        "memory_type": "episodic_memory",
-                                        "user_id": "user_123",
-                                        "timestamp": "2024-01-15T10:30:00",
-                                        "content": "User discussed coffee during the project sync",
-                                        "summary": "Project sync coffee note",
-                                    }
-                                ],
-                                "total_count": 100,
-                                "has_more": False,
-                                "metadata": {
-                                    "source": "fetch_mem_service",
-                                    "user_id": "user_123",
-                                    "memory_type": "fetch",
-                                },
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -385,8 +298,8 @@ class MemoryController(BaseController):
     async def fetch_memories(
         self,
         fastapi_request: FastAPIRequest,
-        request_body: FetchMemoriesParams = None,  # OpenAPI documentation (body params)
-    ) -> Dict[str, Any]:
+        request_body: FetchMemRequest = None,  # For OpenAPI request body documentation
+    ) -> FetchMemoriesResponse:
         """
         Retrieve user memory data
 
@@ -454,7 +367,7 @@ class MemoryController(BaseController):
 
     @get(
         "/search",
-        response_model=Dict[str, Any],
+        response_model=SearchMemoriesResponse,
         summary="Search relevant memories (keyword/vector/hybrid/rrf/agentic)",
         description="""
         Retrieve relevant memory data based on query text using multiple retrieval methods
@@ -486,69 +399,6 @@ class MemoryController(BaseController):
         - Each memory has a relevance score indicating match degree with query
         """,
         responses={
-            200: {
-                "description": "Successfully retrieved memory data",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "SearchMemoriesResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "groups": {"type": "array"},
-                                        "importance_scores": {"type": "array"},
-                                        "total_count": {"type": "integer"},
-                                        "has_more": {"type": "boolean"},
-                                        "query_metadata": {"type": "object"},
-                                        "metadata": {"type": "object"},
-                                        "pending_messages": {"type": "array"},
-                                    },
-                                },
-                            },
-                        },
-                        "example": {
-                            "status": "ok",
-                            "message": "Memory retrieval successful",
-                            "result": {
-                                "groups": [
-                                    {
-                                        "group_id": "group_456",
-                                        "memories": [
-                                            {
-                                                "memory_type": "episodic_memory",
-                                                "user_id": "user_123",
-                                                "timestamp": "2024-01-15T10:30:00",
-                                                "summary": "Discussed coffee choices",
-                                                "group_id": "group_456",
-                                            }
-                                        ],
-                                        "scores": [0.95],
-                                        "original_data": [],
-                                    }
-                                ],
-                                "importance_scores": [0.85],
-                                "total_count": 45,
-                                "has_more": False,
-                                "query_metadata": {
-                                    "source": "episodic_memory_es_repository",
-                                    "user_id": "user_123",
-                                    "memory_type": "retrieve",
-                                },
-                                "metadata": {
-                                    "source": "episodic_memory_es_repository",
-                                    "user_id": "user_123",
-                                    "memory_type": "retrieve",
-                                },
-                                "pending_messages": [],
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -582,8 +432,8 @@ class MemoryController(BaseController):
     async def search_memories(
         self,
         fastapi_request: FastAPIRequest,
-        request_body: SearchMemoriesRequest = None,  # OpenAPI documentation (body params)
-    ) -> Dict[str, Any]:
+        request_body: RetrieveMemRequest = None,  # For OpenAPI request body documentation
+    ) -> SearchMemoriesResponse:
         """
         Search relevant memory data
 
@@ -658,7 +508,7 @@ class MemoryController(BaseController):
 
     @get(
         "/conversation-meta",
-        response_model=Dict[str, Any],
+        response_model=GetConversationMetaResponse,
         summary="Get conversation metadata",
         description="""
         Retrieve conversation metadata by group_id with fallback to default config
@@ -677,61 +527,6 @@ class MemoryController(BaseController):
         - Auto-fallback to defaults when group config not set
         """,
         responses={
-            200: {
-                "description": "Successfully retrieved conversation metadata",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "GetConversationMetaResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {"type": "string"},
-                                        "group_id": {"type": "string"},
-                                        "scene": {"type": "string"},
-                                        "name": {"type": "string"},
-                                        "is_default": {"type": "boolean"},
-                                    },
-                                },
-                            },
-                        },
-                        "examples": {
-                            "found": {
-                                "summary": "Found by group_id",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Conversation metadata retrieved successfully",
-                                    "result": {
-                                        "id": "507f1f77bcf86cd799439011",
-                                        "group_id": "group_123",
-                                        "scene": "group_chat",
-                                        "name": "Project Discussion",
-                                        "is_default": False,
-                                    },
-                                },
-                            },
-                            "fallback": {
-                                "summary": "Fallback to default config",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Using default config",
-                                    "result": {
-                                        "id": "507f1f77bcf86cd799439012",
-                                        "group_id": None,
-                                        "scene": "group_chat",
-                                        "name": "Default Settings",
-                                        "is_default": True,
-                                    },
-                                },
-                            },
-                        },
-                    }
-                },
-            },
             404: {
                 "description": "Conversation metadata not found",
                 "content": {
@@ -742,14 +537,14 @@ class MemoryController(BaseController):
                         }
                     }
                 },
-            },
+            }
         },
     )
     async def get_conversation_meta(
         self,
         fastapi_request: FastAPIRequest,
         request_body: ConversationMetaGetRequest = None,  # OpenAPI documentation only
-    ) -> Dict[str, Any]:
+    ) -> GetConversationMetaResponse:
         """
         Get conversation metadata by group_id with fallback support
 
@@ -812,7 +607,7 @@ class MemoryController(BaseController):
 
     @post(
         "/conversation-meta",
-        response_model=Dict[str, Any],
+        response_model=SaveConversationMetaResponse,
         summary="Save conversation metadata",
         description="""
         Save conversation metadata information, including scene, participants, tags, etc.
@@ -831,40 +626,6 @@ class MemoryController(BaseController):
         - If you only need to update partial fields, use the PATCH /conversation-meta interface
         """,
         responses={
-            200: {
-                "description": "Successfully saved conversation metadata",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "SaveConversationMetaResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {"type": "string"},
-                                        "group_id": {"type": "string"},
-                                        "scene": {"type": "string"},
-                                        "name": {"type": "string"},
-                                    },
-                                },
-                            },
-                        },
-                        "example": {
-                            "status": "ok",
-                            "message": "Conversation metadata saved successfully",
-                            "result": {
-                                "id": "507f1f77bcf86cd799439011",
-                                "group_id": "group_123",
-                                "scene": "group_chat",
-                                "name": "Project Discussion",
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -899,7 +660,7 @@ class MemoryController(BaseController):
         self,
         fastapi_request: FastAPIRequest,
         request_body: ConversationMetaCreateRequest = None,  # OpenAPI documentation only
-    ) -> Dict[str, Any]:
+    ) -> SaveConversationMetaResponse:
         """
         Save conversation metadata
 
@@ -945,12 +706,7 @@ class MemoryController(BaseController):
             logger.error(
                 "conversation-meta validation failed: %s", e.message, exc_info=True
             )
-            # ValidationException 的 message 已经包含了字段名和详细错误信息
-            # 例如: "Field 'scene': invalid scene value: company, allowed values: ['group_chat', 'assistant']"
-            raise HTTPException(
-                status_code=400,
-                detail=e.message,
-            ) from e
+            raise HTTPException(status_code=400, detail=e.message) from e
         except ValueError as e:
             logger.error("conversation-meta request parameter error: %s", e)
             raise HTTPException(status_code=400, detail=str(e)) from e
@@ -967,7 +723,7 @@ class MemoryController(BaseController):
 
     @patch(
         "/conversation-meta",
-        response_model=Dict[str, Any],
+        response_model=PatchConversationMetaResponse,
         summary="Partially update conversation metadata",
         description="""
         Partially update conversation metadata, only updating provided fields
@@ -992,40 +748,6 @@ class MemoryController(BaseController):
         - Not allowed to modify core fields such as version, scene, group_id, conversation_created_at
         """,
         responses={
-            200: {
-                "description": "Successfully updated conversation metadata",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "PatchConversationMetaResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {"type": "string"},
-                                        "group_id": {"type": "string"},
-                                        "name": {"type": "string"},
-                                        "updated_fields": {"type": "array"},
-                                    },
-                                },
-                            },
-                        },
-                        "example": {
-                            "status": "ok",
-                            "message": "Conversation metadata updated successfully",
-                            "result": {
-                                "id": "507f1f77bcf86cd799439011",
-                                "group_id": "group_123",
-                                "name": "New conversation name",
-                                "updated_fields": ["name", "tags"],
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -1074,7 +796,7 @@ class MemoryController(BaseController):
         self,
         fastapi_request: FastAPIRequest,
         request_body: ConversationMetaPatchRequest = None,  # OpenAPI documentation only
-    ) -> Dict[str, Any]:
+    ) -> PatchConversationMetaResponse:
         """
         Partially update conversation metadata
 
@@ -1145,12 +867,7 @@ class MemoryController(BaseController):
                 e.message,
                 exc_info=True,
             )
-            # ValidationException 的 message 已经包含了字段名和详细错误信息
-            # 例如: "Field 'scene': invalid scene value: company, allowed values: ['group_chat', 'assistant']"
-            raise HTTPException(
-                status_code=400,
-                detail=e.message,
-            ) from e
+            raise HTTPException(status_code=400, detail=e.message) from e
         except HTTPException:
             # Re-raise HTTPException
             raise
@@ -1179,7 +896,7 @@ class MemoryController(BaseController):
 
     @delete(
         "",
-        response_model=Dict[str, Any],
+        response_model=DeleteMemoriesResponse,
         summary="Delete memories (soft delete)",
         description="""
         Soft delete memory records based on combined filter criteria
@@ -1212,57 +929,6 @@ class MemoryController(BaseController):
         - Conversation history management
         """,
         responses={
-            200: {
-                "description": "Successfully deleted memories",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "title": "DeleteMemoriesResponse",
-                            "type": "object",
-                            "properties": {
-                                "status": {"type": "string"},
-                                "message": {"type": "string"},
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "filters": {"type": "array"},
-                                        "count": {"type": "integer"},
-                                    },
-                                },
-                            },
-                        },
-                        "examples": {
-                            "single": {
-                                "summary": "Delete by event_id only",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Successfully deleted 1 memory",
-                                    "result": {"filters": ["event_id"], "count": 1},
-                                },
-                            },
-                            "batch_user": {
-                                "summary": "Delete by user_id only",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Successfully deleted 25 memories",
-                                    "result": {"filters": ["user_id"], "count": 25},
-                                },
-                            },
-                            "combined": {
-                                "summary": "Delete by user_id and group_id",
-                                "value": {
-                                    "status": "ok",
-                                    "message": "Successfully deleted 10 memories",
-                                    "result": {
-                                        "filters": ["user_id", "group_id"],
-                                        "count": 10,
-                                    },
-                                },
-                            },
-                        },
-                    }
-                },
-            },
             400: {
                 "description": "Request parameter error",
                 "content": {
@@ -1310,8 +976,8 @@ class MemoryController(BaseController):
     async def delete_memories(
         self,
         fastapi_request: FastAPIRequest,
-        request_body: DeleteMemoriesRequest = None,  # OpenAPI documentation (body params)
-    ) -> Dict[str, Any]:
+        request_body: DeleteMemoriesRequestDTO = None,  # OpenAPI documentation (body params)
+    ) -> DeleteMemoriesResponse:
         """
         Soft delete memory data based on combined filter criteria
 
@@ -1341,9 +1007,9 @@ class MemoryController(BaseController):
                     if isinstance(body_data := json.loads(body), dict):
                         params.update(body_data)
 
-            # Extract and validate parameters using DeleteMemoriesRequest
+            # Extract and validate parameters using DeleteMemoriesRequestDTO
             try:
-                delete_request = DeleteMemoriesRequest(
+                delete_request = DeleteMemoriesRequestDTO(
                     event_id=params.get("event_id", MAGIC_ALL),
                     user_id=params.get("user_id", MAGIC_ALL),
                     group_id=params.get("group_id", MAGIC_ALL),

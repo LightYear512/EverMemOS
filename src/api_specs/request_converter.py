@@ -11,10 +11,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from api_specs.memory_models import MemoryType
-from api_specs.dtos.memory_query import RetrieveMemRequest, FetchMemRequest
-from api_specs.dtos.memory_command import MemorizeRequest
+from api_specs.dtos import RetrieveMemRequest, FetchMemRequest, MemorizeRequest, RawData
 from api_specs.memory_types import RawDataType
-from api_specs.dtos.memory_command import RawData
 from core.oxm.constants import MAGIC_ALL
 
 from typing import Dict, Any, Optional
