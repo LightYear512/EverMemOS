@@ -150,19 +150,24 @@ class BaseMemoryModel:
 
 @dataclass
 class ProfileModel:
-    """User profile model"""
+    """User profile model
+
+    Stores user profile information automatically extracted from clustering conversations.
+    Compatible with UserProfile document structure.
+    """
 
     id: str
     user_id: str
-    name: str
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    occupation: Optional[str] = None
-    interests: List[str] = field(default_factory=list)
-    personality_traits: Dict[str, float] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=get_now_with_timezone)
-    updated_at: datetime = field(default_factory=get_now_with_timezone)
-    metadata: Metadata = field(default_factory=Metadata)
+    group_id: str
+    profile_data: Dict[str, Any] = field(default_factory=dict)
+    scenario: str = "group_chat"
+    confidence: float = 0.0
+    version: int = 1
+    cluster_ids: List[str] = field(default_factory=list)
+    memcell_count: int = 0
+    last_updated_cluster: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 @dataclass
@@ -203,23 +208,6 @@ class EpisodicMemoryModel:
     extend: Optional[Dict[str, Any]] = None
     memcell_event_id_list: Optional[List[str]] = None
     subject: Optional[str] = None
-
-
-@dataclass
-class ForesightModel:
-    """Prospective memory model"""
-
-    id: str
-    user_id: str
-    concept: str
-    definition: str
-    category: str
-    related_concepts: List[str] = field(default_factory=list)
-    confidence_score: float = 1.0
-    source: Optional[str] = None
-    created_at: datetime = field(default_factory=get_now_with_timezone)
-    updated_at: datetime = field(default_factory=get_now_with_timezone)
-    metadata: Metadata = field(default_factory=Metadata)
 
 
 @dataclass
@@ -348,7 +336,7 @@ class EventLogModel:
 
 
 @dataclass
-class ForesightRecordModel:
+class ForesightModel:
     """Prospective record model
 
     Prospective information extracted from episodic memories, supporting individual and group foresight.
@@ -381,15 +369,14 @@ class ForesightRecordModel:
 
 # Union type definition
 MemoryModel = Union[
-    BaseMemoryModel,
+    # BaseMemoryModel,
+    # PreferenceModel,
     ProfileModel,
-    PreferenceModel,
     EpisodicMemoryModel,
-    ForesightModel,
-    EntityModel,
-    RelationModel,
-    BehaviorHistoryModel,
-    CoreMemoryModel,
+    # EntityModel,
+    # RelationModel,
+    # BehaviorHistoryModel,
+    # CoreMemoryModel,
     EventLogModel,
-    ForesightRecordModel,
+    ForesightModel,
 ]

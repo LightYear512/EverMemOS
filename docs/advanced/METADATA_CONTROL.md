@@ -57,9 +57,9 @@ This guide explains when and how to control metadata for optimal results.
 ```json
 {
   "conversation_meta": {
-    "scene": "company",
+    "scene": "assistant",
     "scene_desc": {
-      "bot_ids": ["assistant_001"]
+      "description": "Project discussion group chat"
     },
     "user_details": {
       "user_123": {
@@ -110,7 +110,7 @@ This guide explains when and how to control metadata for optimal results.
 ```json
 {
   "conversation_meta": {
-    "scene": "work",
+    "scene": "group_chat",
     "tags": ["project-alpha", "backend", "Q1-2025"]
   }
 }
@@ -131,7 +131,7 @@ This guide explains when and how to control metadata for optimal results.
 requests.post(
     "http://localhost:8001/api/v1/memories/conversation-meta",
     json={
-        "scene": "work",
+        "scene": "group_chat",
         "name": "Default Work Config",
         "default_timezone": "UTC",
         "user_details": {}
@@ -155,7 +155,7 @@ requests.post(
 | `name` | string | Yes | Human-readable name for the conversation |
 | `description` | string | No | Description of the conversation context |
 | `scene` | string | No | Scene type: `company` (1:1 with AI) or `work` (group chat) |
-| `scene_desc` | object | No | Scene-specific details (e.g., `bot_ids` for company scene) |
+| `scene_desc` | object | No | Scene-specific details (e.g., `description` for company scene) |
 | `default_timezone` | string | No | IANA timezone name (e.g., `America/New_York`) |
 | `user_details` | object | Yes | Dictionary of user information keyed by user ID |
 | `tags` | array | No | List of tags for categorization |
@@ -317,8 +317,8 @@ Track support conversations with customer context:
 {
   "conversation_meta": {
     "group_id": "support_ticket_12345",
-    "scene": "company",
-    "scene_desc": {"bot_ids": ["support_bot"]},
+    "scene": "assistant",
+    "scene_desc": {"description": "Support conversation with customer"},
     "name": "Ticket #12345 - Login Issue",
     "tags": ["support", "login", "high-priority"],
     "user_details": {
@@ -344,7 +344,7 @@ Capture meeting context with participant roles:
 {
   "conversation_meta": {
     "group_id": "meeting_standup_2025_02_01",
-    "scene": "work",
+    "scene": "group_chat",
     "name": "Daily Standup - Feb 1, 2025",
     "default_timezone": "America/New_York",
     "tags": ["standup", "daily", "sprint-23"],
@@ -374,8 +374,8 @@ Track personal conversations with the AI:
 {
   "conversation_meta": {
     "group_id": "personal_assistant_john",
-    "scene": "company",
-    "scene_desc": {"bot_ids": ["claude_assistant"]},
+    "scene": "assistant",
+    "scene_desc": {"description": "Personal assistant conversation with John"},
     "name": "John's Personal Assistant",
     "user_details": {
       "john": {
@@ -419,8 +419,8 @@ Always include timezone in message timestamps or set `default_timezone`:
 
 ### 4. Use Appropriate Scene Types
 
-- **`company`**: Use for 1:1 human-AI conversations (include `bot_ids` in `scene_desc`)
-- **`work`**: Use for multi-person group chats and meetings
+- **`assistant`**: Use for 1:1 human-AI conversations
+- **`group_chat`**: Use for multi-person group chats and meetings
 
 ### 5. Leverage Tags for Organization
 

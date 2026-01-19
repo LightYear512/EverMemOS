@@ -50,12 +50,13 @@ from api_specs.dtos import FetchMemResponse
 from api_specs.memory_models import (
     MemoryType,
     BaseMemoryModel,
+    ProfileModel,
     PreferenceModel,
     EpisodicMemoryModel,
     BehaviorHistoryModel,
     CoreMemoryModel,
     EventLogModel,
-    ForesightRecordModel,
+    ForesightModel,
     Metadata,
 )
 
@@ -203,33 +204,29 @@ class FetchMemoryServiceImpl(FetchMemoryServiceInterface):
             },
         )
 
-    def _convert_user_profile(self, user_profile) -> dict:
-        """Convert user profile document to dictionary
+    def _convert_user_profile(self, user_profile) -> ProfileModel:
+        """Convert user profile document to ProfileModel
 
         Args:
             user_profile: User profile document
 
         Returns:
-            Dictionary with user profile data
+            ProfileModel instance
         """
-        return {
-            "id": str(user_profile.id),
-            "user_id": user_profile.user_id,
-            "group_id": user_profile.group_id,
-            "profile_data": user_profile.profile_data,
-            "scenario": user_profile.scenario,
-            "confidence": user_profile.confidence,
-            "version": user_profile.version,
-            "cluster_ids": user_profile.cluster_ids,
-            "memcell_count": user_profile.memcell_count,
-            "last_updated_cluster": user_profile.last_updated_cluster,
-            "created_at": (
-                user_profile.created_at.isoformat() if user_profile.created_at else None
-            ),
-            "updated_at": (
-                user_profile.updated_at.isoformat() if user_profile.updated_at else None
-            ),
-        }
+        return ProfileModel(
+            id=str(user_profile.id),
+            user_id=user_profile.user_id,
+            group_id=user_profile.group_id,
+            profile_data=user_profile.profile_data,
+            scenario=user_profile.scenario,
+            confidence=user_profile.confidence,
+            version=user_profile.version,
+            cluster_ids=user_profile.cluster_ids,
+            memcell_count=user_profile.memcell_count,
+            last_updated_cluster=user_profile.last_updated_cluster,
+            created_at=user_profile.created_at,
+            updated_at=user_profile.updated_at,
+        )
 
     def _convert_preferences_from_core_memory(
         self, core_memory
@@ -436,7 +433,7 @@ class FetchMemoryServiceImpl(FetchMemoryServiceInterface):
         self,
         foresight_record: Union[ForesightRecord, ForesightRecordProjection],
         user_details_cache: dict = None,
-    ) -> ForesightRecordModel:
+    ) -> ForesightModel:
         """Convert foresight record document to model
 
         Supports both ForesightRecord and ForesightRecordProjection types.
@@ -459,7 +456,7 @@ class FetchMemoryServiceImpl(FetchMemoryServiceInterface):
             phone=user_info.get('phone'),
         )
 
-        return ForesightRecordModel(
+        return ForesightModel(
             id=str(foresight_record.id),
             content=foresight_record.content,
             parent_type=foresight_record.parent_type,

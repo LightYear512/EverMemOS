@@ -324,10 +324,18 @@ Save or update conversation metadata (upsert behavior).
 
 ```json
 {
+  "version": "1.0",
+  "scene": "group_chat",
+  "scene_desc": {
+    "description": "Project discussion group chat",
+    "type": "project_discussion"
+  },
+  "name": "Project Discussion Group",
+  "description": "Technical discussion for new feature development",
   "group_id": "group_123",
   "version": "1.0.0",
   "scene": "group_chat",
-  "scene_desc": {"bot_ids": ["assistant_001"]},
+  "scene_desc": {"description": "Project discussion group chat"},
   "name": "Engineering Team",
   "description": "Backend team discussions",
   "created_at": "2025-01-15T10:00:00Z",
@@ -347,16 +355,16 @@ Save or update conversation metadata (upsert behavior).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `group_id` | string | No | Group ID (omit for default config) |
-| `version` | string | Yes | Metadata version |
-| `scene` | string | Yes | `group_chat` or `assistant` |
-| `scene_desc` | object | No | Scene details (e.g., `bot_ids`) |
-| `name` | string | Yes | Conversation name |
-| `description` | string | No | Conversation description |
-| `created_at` | string | No | Creation time (ISO 8601) |
-| `default_timezone` | string | No | Default timezone |
-| `user_details` | object | No | Participant details |
-| `tags` | array | No | Tag list |
+| version | string | Yes | Metadata version |
+| scene | string | Yes | Scene identifier (e.g., "assistant" or "group_chat") |
+| scene_desc | object | Yes | Scene description object, can contain fields like description |
+| name | string | Yes | Conversation name |
+| description | string | No | Conversation description |
+| group_id | string | Yes | Unique group identifier |
+| created_at | string | Yes | Conversation creation time (ISO 8601 format) |
+| default_timezone | string | No | Default timezone (defaults to system timezone) |
+| user_details | object | No | Participant details, key is user ID, value is user detail object |
+| tags | array | No | Tag list |
 
 ### User Details Fields
 
