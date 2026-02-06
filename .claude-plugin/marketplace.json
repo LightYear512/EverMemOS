@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "evermemos",
+  "description": "EverMemOS memory integration for Claude Code",
+  "owner": {
+    "name": "EverMemOS"
+  },
+  "plugins": [
+    {
+      "name": "evermemos",
+      "description": "EverMemOS memory integration for Claude Code - automatic conversation capture and memory retrieval",
+      "version": "0.1.0",
+      "author": {
+        "name": "EverMemOS"
+      },
+      "source": "./plugins/claude-code/plugin",
+      "category": "productivity",
+      "homepage": "https://github.com/LightYear512/EverMemOS"
+    }
+  ]
+}
