@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "SessionStart": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.cjs\"" }],
+    "Stop": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.cjs\"" }],
+    "PreCompact": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.cjs\"" }],
+    "SessionEnd": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.cjs\"" }]
+  }
+}

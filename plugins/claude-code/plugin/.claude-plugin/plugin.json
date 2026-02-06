@@ -1,0 +1,17 @@
+{
+  "name": "evermemos",
+  "version": "0.1.0",
+  "description": "EverMemOS memory integration for Claude Code - automatic conversation capture and memory retrieval",
+  "author": {
+    "name": "EverMemOS"
+  },
+  "repository": "https://github.com/EverMemOS/EverMemOS",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "long-term-memory",
+    "hooks",
+    "mcp",
+    "evermemos"
+  ]
+}

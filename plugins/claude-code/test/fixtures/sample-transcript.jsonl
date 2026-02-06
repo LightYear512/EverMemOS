@@ -1,0 +1,7 @@
+{"type":"user","uuid":"msg-001","timestamp":"2026-02-06T10:00:00Z","message":{"role":"user","content":"Hello, can you help me with the project?"}}
+{"type":"assistant","uuid":"msg-002","timestamp":"2026-02-06T10:00:05Z","message":{"role":"assistant","content":"Sure! I'd be happy to help with your project."}}
+{"type":"user","uuid":"msg-003","timestamp":"2026-02-06T10:01:00Z","message":{"role":"user","content":[{"type":"text","text":"Here is some code"},{"type":"tool_result","tool_use_id":"tool-1","content":"result data"}]}}
+{"type":"assistant","uuid":"msg-004","timestamp":"2026-02-06T10:01:10Z","message":{"role":"assistant","content":[{"type":"text","text":"Let me analyze this."},{"type":"tool_use","name":"read_file","input":{"path":"test.ts"}},{"type":"thinking","text":"internal reasoning"}]}}
+{"type":"summary","message":{"content":"This is a summary"}}
+{"type":"system","message":{"content":"System message"}}
+{"type":"user","uuid":"msg-005","timestamp":"2026-02-06T10:02:00Z","message":{"role":"user","content":"Thanks <system-reminder>hidden reminder</system-reminder> for the help"}}

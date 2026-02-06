@@ -1,0 +1,18 @@
+{
+  "name": "evermemos",
+  "owner": {
+    "name": "EverMemOS"
+  },
+  "metadata": {
+    "description": "EverMemOS - Enterprise AI Long-term Memory System",
+    "homepage": "https://github.com/EverMemOS/EverMemOS"
+  },
+  "plugins": [
+    {
+      "name": "evermemos",
+      "version": "0.1.0",
+      "source": "./plugin",
+      "description": "EverMemOS memory integration for Claude Code - automatic conversation capture and memory retrieval"
+    }
+  ]
+}
